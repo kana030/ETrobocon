@@ -25,10 +25,10 @@ using namespace ev3api;
 #define _debug(x)
 #endif
 
-#define QUEUE_SIZE 200      /* 最大データ数 */
+#define QUEUE_SIZE 200      //最大データ数
 
-typedef struct {
-    int head;
+typedef struct {            //キューのための構造体
+    int head;               
     int num;
     int time[QUEUE_SIZE];
     int anglerVelocity[QUEUE_SIZE];
@@ -41,16 +41,7 @@ typedef struct {
 Motor* myRightMotor;    //モータ右
 Motor* myLeftMotor;     //モータ左
 GyroSensor* myGyro;     //ジャイロセンサ
-Clock* myClock;
-
-//ログの値用
-//int iRightMotor;
-//int iLeftMotor;
-//int iAnglerVelocity;
-//int iTime;
-//int iBatteryVoltage;
-//signed char RetRightPWM;
-//signed char RetLeftPWM;
+Clock* myClock;         //クロック
 
 queue_t que;
 
@@ -63,7 +54,8 @@ void main_task(intptr_t unused) {
     myClock->reset();
     que.num = 0;
     que.head = 0;
-    //スタート
+
+    //バランスコントロールの開始
     while (1)
     {
 
@@ -84,13 +76,13 @@ void main_task(intptr_t unused) {
         myRightMotor->setPWM(que.retRightPWM[que.num]);
         myLeftMotor->setPWM(que.retLeftPWM[que.num]);
 
-        que.time[que.num] = myClock->now();
+        que.time[que.num] = myClock->now();         //キューの最大サイズの場合0に戻る
         //int iNum = (que.head + que.num) % QUEUE_SIZE;
 
         que.num++;
 
-        //追加
-        if (que.num == QUEUE_SIZE){
+        
+        if (que.num == QUEUE_SIZE){         //
             que.num = 0;
         }
 
@@ -116,13 +108,14 @@ void file_task(intptr_t unused) {
             //for (int j = i; j > 0; j--){
             //    iNum = (que.head + i) % QUEUE_SIZE;
             fprintf(fpLog, "%d,%d,%d,%d,%d,\n",
-                que.time[que.head],
-                que.anglerVelocity[que.head],
-                que.retLeftPWM[que.head],
-                que.retRightPWM[que.head],
-                que.batteryVoltage[que.head]);
+                que.time[que.head],             //システムクロック時刻
+                que.anglerVelocity[que.head],   //ジャイロ角速度
+                que.retLeftPWM[que.head],       //左PWM
+                que.retRightPWM[que.head],      //右PWM
+                que.batteryVoltage[que.head]);  //電圧
             que.head++;
-            if (que.head == QUEUE_SIZE){
+
+            if (que.head == QUEUE_SIZE){        //キューの最大サイズの場合0に戻る
                 que.head = 0;
             }
             //    que.head = (que.head + 1) % QUEUE_SIZE;
