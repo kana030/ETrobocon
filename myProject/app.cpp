@@ -25,19 +25,34 @@ using namespace ev3api;
 #define _debug(x)
 #endif
 
+#define QUEUE_SIZE 200      /* 最大データ数 */
+
+typedef struct {
+    int head;
+    int num;
+    int time[QUEUE_SIZE];
+    int anglerVelocity[QUEUE_SIZE];
+    signed char retRightPWM[QUEUE_SIZE];
+    signed char retLeftPWM[QUEUE_SIZE];
+    int batteryVoltage[QUEUE_SIZE];
+
+} queue_t;
+
 Motor* myRightMotor;    //モータ右
 Motor* myLeftMotor;     //モータ左
 GyroSensor* myGyro;     //ジャイロセンサ
-signed char retRightPWM;
-signed char retLeftPWM;
 Clock* myClock;
 
 //ログの値用
-int iRightMotor;
-int iLeftMotor;
-int iAnglerVelocity;
-int iTime;
+//int iRightMotor;
+//int iLeftMotor;
+//int iAnglerVelocity;
+//int iTime;
+//int iBatteryVoltage;
+//signed char RetRightPWM;
+//signed char RetLeftPWM;
 
+queue_t que;
 
 void main_task(intptr_t unused) {
 
@@ -46,45 +61,81 @@ void main_task(intptr_t unused) {
     myGyro = new GyroSensor(PORT_4);
     myClock = new Clock();
     myClock->reset();
-
+    que.num = 0;
+    que.head = 0;
     //スタート
     while (1)
     {
-        //iAnglerVelocity = myGyro->getAnglerVelocity();
+
+        que.anglerVelocity[que.num] = myGyro->getAnglerVelocity();
+        que.batteryVoltage[que.num] = ev3_battery_voltage_mV();
+
         balance_control(
             (float)0,
             (float)0,
-            (float)myGyro->getAnglerVelocity(),
+            (float)que.anglerVelocity[que.num],
             (float)0,
             (float)myLeftMotor->getCount(),
             (float)myRightMotor->getCount(),
-            (float)ev3_battery_voltage_mV(),
-            &retLeftPWM,
-            &retRightPWM
+            (float)que.batteryVoltage[que.num],
+            &que.retLeftPWM[que.num],
+            &que.retRightPWM[que.num]
             );
-        myRightMotor->setPWM(retRightPWM);
-        myLeftMotor->setPWM(retLeftPWM);
+        myRightMotor->setPWM(que.retRightPWM[que.num]);
+        myLeftMotor->setPWM(que.retLeftPWM[que.num]);
+
+        que.time[que.num] = myClock->now();
+        //int iNum = (que.head + que.num) % QUEUE_SIZE;
+
+        que.num++;
+
+        //追加
+        if (que.num == QUEUE_SIZE){
+            que.num = 0;
+        }
+
         myClock->sleep(4);
     }
 }
 
 void file_task(intptr_t unused) {
 
-    //char firstLine[] = "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧\n";
     FILE* fpLog;
+    //int iNum;
     fpLog = fopen("log.csv", "a");
     if (fpLog == NULL){
         return;
     }
+    else
+    {
+        fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧\n");
+        while (1){
+
+            //if (que.time[(que.head + que.num) % QUEUE_SIZE] > 0){
+            //int i = que.num;
+            //for (int j = i; j > 0; j--){
+            //    iNum = (que.head + i) % QUEUE_SIZE;
+            fprintf(fpLog, "%d,%d,%d,%d,%d,\n",
+                que.time[que.head],
+                que.anglerVelocity[que.head],
+                que.retLeftPWM[que.head],
+                que.retRightPWM[que.head],
+                que.batteryVoltage[que.head]);
+            que.head++;
+            if (que.head == QUEUE_SIZE){
+                que.head = 0;
+            }
+            //    que.head = (que.head + 1) % QUEUE_SIZE;
+            //}
+            //que.num -= i;
+            //}
 
 
-    //fprintf(fpLog, "%s\n", firstLine);
-    fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧\n");
-    while (1){
-        fprintf(fpLog, "%d,ジャイロ角速度,左PWM,右PWM,電圧\n", myClock->now());
-        myClock->sleep(4);
+            myClock->sleep(4);
 
+        }
     }
+
     //    ev3_led_set_color(LED_RED);
     //    myClock->sleep(4);
     fclose(fpLog);
