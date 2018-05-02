@@ -27,9 +27,9 @@ using namespace ev3api;
 
 #define QUEUE_SIZE 200      //最大データ数
 
-typedef struct {            //キューのための構造体
+typedef struct {            //キューの構造体
     int head;
-    int num;
+    int tail;
     int time[QUEUE_SIZE];
     int anglerVelocity[QUEUE_SIZE];
     signed char retLeftPWM[QUEUE_SIZE];
@@ -52,16 +52,21 @@ int iLeftMotor;
 int iBatteryVoltage;
 
 void enqueue(queue_t*, int, int, signed char, signed char, int);
-queue_t que;
+void dequeue(queue_t*, FILE*);
 
+queue_t que;
+/*
+* メインタスク
+*/
 void main_task(intptr_t unused) {
 
     myLeftMotor = new Motor(PORT_B);
     myRightMotor = new Motor(PORT_A);
     myGyro = new GyroSensor(PORT_4);
     myClock = new Clock();
+
     myClock->reset();
-    que.num = 0;
+    que.tail = 0;
     que.head = 0;
 
     //バランスコントロールの開始
@@ -80,7 +85,8 @@ void main_task(intptr_t unused) {
             (float)iBatteryVoltage,
             &retLeftPWM,
             &retRightPWM
-            ); 
+            );
+
         myLeftMotor->setPWM(retLeftPWM);
         myRightMotor->setPWM(retRightPWM);
         enqueue(&que, myClock->now(), iAnglerVelocity, retLeftPWM, retRightPWM, iBatteryVoltage);
@@ -88,6 +94,10 @@ void main_task(intptr_t unused) {
     }
 }
 
+
+/*
+* ファイル書き込みを行うタスク
+*/
 void file_task(intptr_t unused) {
 
     FILE* fpLog;
@@ -98,21 +108,11 @@ void file_task(intptr_t unused) {
     }
     else
     {
+        dequeue(&que,fpLog);
         fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧\n");
         while (1){
 
-            fprintf(fpLog, "%d,%d,%d,%d,%d,\n",
-                que.time[que.head],             //システムクロック時刻
-                que.anglerVelocity[que.head],   //ジャイロ角速度
-                que.retLeftPWM[que.head],       //左PWM
-                que.retRightPWM[que.head],      //右PWM
-                que.batteryVoltage[que.head]);  //電圧
-            que.head++;
-
-            if (que.head == QUEUE_SIZE){        //キューの最大サイズの場合0に戻る
-                que.head = 0;
-            }
-
+            dequeue(&que, fpLog);
             myClock->sleep(4);
 
         }
@@ -122,20 +122,39 @@ void file_task(intptr_t unused) {
 
 }
 
-void enqueue(queue_t *que, int time, int anglerVelocity, signed char retLeftPWM,signed char retRightPWM, int batteryVoltage)
+void enqueue(queue_t *que, int time, int anglerVelocity, signed char retLeftPWM, signed char retRightPWM, int batteryVoltage)
 {
 
-    que->time[que->num] = time;
-    que->anglerVelocity[que->num] = anglerVelocity;
-    que->retLeftPWM[que->num] = retLeftPWM;
-    que->retRightPWM[que->num] = retRightPWM;
-    que->batteryVoltage[que->num] = batteryVoltage;
-    que->num++;
+    que->time[que->tail] = time;
+    que->anglerVelocity[que->tail] = anglerVelocity;
+    que->retLeftPWM[que->tail] = retLeftPWM;
+    que->retRightPWM[que->tail] = retRightPWM;
+    que->batteryVoltage[que->tail] = batteryVoltage;
+    que->tail++;
 
 
-    if (que->num == QUEUE_SIZE){            //キューの最大サイズの場合0に戻る      
-        que->num = 0;
+    if (que->tail == QUEUE_SIZE){            //キューの最大サイズの場合0に戻る      
+        que->tail = 0;
     }
 
 
 }
+
+void dequeue(queue_t *que, FILE* fpLog)
+{
+
+    fprintf(fpLog, "%d,%d,%d,%d,%d,\n",
+        que->time[que->head],             //システムクロック時刻
+        que->anglerVelocity[que->head],   //ジャイロ角速度
+        que->retLeftPWM[que->head],       //左PWM
+        que->retRightPWM[que->head],      //右PWM
+        que->batteryVoltage[que->head]);  //電圧
+    que->head++;
+
+    if (que->head == QUEUE_SIZE){        //キューの最大サイズの場合0に戻る
+        que->head = 0;
+    }
+
+
+}
+
