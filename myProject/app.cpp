@@ -14,6 +14,7 @@
 #include "Motor.h"
 #include "GyroSensor.h"
 #include "Clock.h"
+#include "ColorSensor.h"
 
 using namespace ev3api;
 
@@ -42,6 +43,8 @@ Motor* myLeftMotor;     //モータ左
 Motor* myRightMotor;    //モータ右
 GyroSensor* myGyro;     //ジャイロセンサ
 Clock* myClock;         //時間
+ColorSensor* myColor;   //カラーセンサ
+
 
 //ログの値用
 int iAnglerVelocity;
@@ -64,6 +67,7 @@ void main_task(intptr_t unused) {
     myRightMotor = new Motor(PORT_A);
     myGyro = new GyroSensor(PORT_4);
     myClock = new Clock();
+    myColor = new ColorSensor(PORT_2);
 
     myClock->reset();
     que.tail = 0;
@@ -76,7 +80,7 @@ void main_task(intptr_t unused) {
         iBatteryVoltage = ev3_battery_voltage_mV();
 
         balance_control(
-            (float)0,
+            (float)15,
             (float)0,
             (float)iAnglerVelocity,
             (float)0,
