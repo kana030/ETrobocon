@@ -147,7 +147,6 @@ void linetrace_task(intptr_t idx){
     myRightMotor->setPWM(retRightPWM);
     enqueue(&que, myClock->now(), iAnglerVelocity, retLeftPWM, retRightPWM, iBatteryVoltage);
 
-
 }
 
 /*
