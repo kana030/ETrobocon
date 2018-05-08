@@ -33,7 +33,7 @@ using namespace ev3api;
 #define TURN_LEFT (-30)     //左折する際の値
 #define TURN_RIGHT (30)     //右折する際の値
 #define COLOR_BLACK (10)    //カラーセンサの黒の値
-#define COLOR_WHITE (30)   //カラーセンサの白の値
+#define COLOR_WHITE (30)    //カラーセンサの白の値
 
 typedef struct QueData
 {
@@ -70,50 +70,84 @@ void enqueue(Que*, int, int, signed char, signed char, int);
 void dequeue(Que*, FILE*);
 void queue_clear(Que*);
 void file_task(intptr_t);
-
+void linetrace_task(intptr_t);
 
 Que que;
 
 float straightSpeed = 10;
 float turnSpeed = 0;
 
+
 /*
 * メインタスク
 */
 void main_task(intptr_t unused)
 {
+
     myLeftMotor = new Motor(PORT_B);
     myRightMotor = new Motor(PORT_A);
+    myColorSensor = new ColorSensor(PORT_2);
     myGyroSensor = new GyroSensor(PORT_4);
     myClock = new Clock();
+
+
+    myLeftMotor = new Motor(PORT_B);
+    myRightMotor = new Motor(PORT_A);
+    myColorSensor = new ColorSensor(PORT_2);
+    myGyroSensor = new GyroSensor(PORT_4);
+    myClock = new Clock();
+
     myClock->reset();
     queue_reset(&que);
     act_tsk(FILE_TASK);
-
     //バランスコントロールの開始
-    while (1)
-    {
-        iAnglerVelocity = myGyroSensor->getAnglerVelocity();
-        iBatteryVoltage = ev3_battery_voltage_mV();
+    ev3_sta_cyc(LINETRACE_TASK);
+    while (1){
 
-        balance_control(
-            (float)straightSpeed,
-            (float)turnSpeed,
-            (float)iAnglerVelocity,
-            (float)0,
-            (float)myLeftMotor->getCount(),
-            (float)myRightMotor->getCount(),
-            (float)iBatteryVoltage,
-            &retLeftPWM,
-            &retRightPWM
-            );
 
-        myLeftMotor->setPWM(retLeftPWM);
-        myRightMotor->setPWM(retRightPWM);
-        enqueue(&que, myClock->now(), iAnglerVelocity, retLeftPWM, retRightPWM, iBatteryVoltage);
+
+
+
         myClock->sleep(4);
     }
-    queue_clear(&que);
+    //queue_clear(&que);
+}
+
+/*
+* 4msecごとに行うタスク
+* バランスコントロール、カラーセンサの値
+*/
+void linetrace_task(intptr_t idx){
+    //カラーセンサの取得
+    int judgeColor = (COLOR_BLACK + COLOR_WHITE) / 2;
+
+    if (myColorSensor->getBrightness() < judgeColor)         //黒の場合
+    {
+        turnSpeed = TURN_RIGHT;
+    }
+    else   //白の場合
+    {
+        turnSpeed = TURN_LEFT;
+    }
+    iAnglerVelocity = myGyroSensor->getAnglerVelocity();
+    iBatteryVoltage = ev3_battery_voltage_mV();
+
+    balance_control(
+        (float)straightSpeed,
+        (float)turnSpeed,
+        (float)iAnglerVelocity,
+        (float)0,
+        (float)myLeftMotor->getCount(),
+        (float)myRightMotor->getCount(),
+        (float)iBatteryVoltage,
+        &retLeftPWM,
+        &retRightPWM
+        );
+    myLeftMotor->setPWM(retLeftPWM);
+    myRightMotor->setPWM(retRightPWM);
+    enqueue(&que, myClock->now(), iAnglerVelocity, retLeftPWM, retRightPWM, iBatteryVoltage);
+
+
 }
 
 /*
@@ -139,39 +173,13 @@ void file_task(intptr_t unused)
 }
 
 /*
-* カラーセンサの値の読み取りを行うタスク
-*/
-void sensor_task(intptr_t unused)
-{
-    myColorSensor = new ColorSensor(PORT_2);
-
-    while (1)
-    {
-        if (myColorSensor->getBrightness() < COLOR_BLACK)         //黒の場合
-        {
-            turnSpeed = TURN_RIGHT;
-        }
-        else if (myColorSensor->getBrightness() > COLOR_WHITE)   //白の場合
-        {
-            turnSpeed = TURN_LEFT;
-        }
-        else
-        {
-            turnSpeed = 0;  //直進
-        }
-        myClock->sleep(4);
-    }
-}
-
-
-/*
 * キューの初期化
 */
 void queue_reset(Que *que)
 {
     que->head = 0;
     que->num = 0;
-    que = (Que *)malloc(sizeof(Que) * QUEUE_SIZE);
+    //que = (Que *)malloc(sizeof(Que) * QUEUE_SIZE);
     que->qyeArray[que->num].time = 0;
     que->qyeArray[que->num].anglerVelocity = 0;
     que->qyeArray[que->num].retLeftPWM = 0;
