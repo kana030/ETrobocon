@@ -30,7 +30,7 @@
  *      また，本ソフトウェアのユーザまたはエンドユーザからのいかなる理
  *      由に基づく請求からも，上記著作権者およびTOPPERSプロジェクトを
  *      免責すること．
- * 
+ *
  *  本ソフトウェアは，無保証で提供されているものである．上記著作権者お
  *  よびTOPPERSプロジェクトは，本ソフトウェアに関して，特定の使用目的
  *  に対する適合性も含めて，いかなる保証も行わない．また，本ソフトウェ
@@ -76,9 +76,6 @@ extern "C" {
 #define LOOP_REF		ULONG_C(1000000)	/* 速度計測用のループ回数 */
 #endif /* LOOP_REF*/
 
-#define 	EV3_LCD_WIDTH   (178)
-#define 	EV3_LCD_HEIGHT   (128)
-
 /*
  *  関数のプロトタイプ宣言
  */
@@ -89,7 +86,7 @@ extern void	main_task(intptr_t exinf);
 extern void balance_task(intptr_t exinf);
 extern void idle_task(intptr_t exinf);
 extern void linetrace_task(intptr_t exinf);    //TOPPERSマクロではないが追加
-extern void file_task(intptr_t exinf);  
+extern void file_task(intptr_t exinf);
 
 //extern void	tex_routine(TEXPTN texptn, intptr_t exinf);
 //#ifdef CPUEXC1

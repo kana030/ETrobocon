@@ -1,5 +1,5 @@
 APPL_COBJS += balancer.o balancer_param.o
-APPL_CXXOBJS += 
+APPL_CXXOBJS += queueClass.o fileWrite.o
 
 SRCLANG := c++
 
