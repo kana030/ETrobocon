@@ -50,7 +50,7 @@ void linetrace_task(intptr_t);
 
 int color_black = 0;
 int color_white = 0;
-float straightSpeed = 100;
+float straightSpeed = 30;
 float turnSpeed = 10;
 
 queueClass *pqueueClass = new queueClass();
@@ -164,6 +164,9 @@ void file_task(intptr_t unused)
 
   LogQueData* fileWriteQue;
   fileWriteQue = (struct LogQueData *)malloc(sizeof(struct LogQueData));
+  if (logQueData == NULL) {
+	  ev3_led_set_color(LED_RED);		//mallocで領域が確保できなかった場合
+  }
 
   //ログの値の変数
   FILE *fpLog;
@@ -182,6 +185,7 @@ void file_task(intptr_t unused)
       }
     }
   }
+  fflush(fpLog);	//書き出す
   fclose(fpLog);
   free(fileWriteQue);
 }

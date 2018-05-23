@@ -18,7 +18,13 @@ using namespace ev3api;
 queueClass::queueClass()
 {
 	que = (struct Que *)malloc(sizeof(struct Que) * QUEUE_SIZE);
+	if (que == NULL) {
+		ev3_led_set_color(LED_RED);		//malloc‚Å—Ìˆæ‚ªŠm•Û‚Å‚«‚È‚©‚Á‚½ê‡
+	}
 	logQueData = (struct LogQueData *)malloc(sizeof(struct LogQueData));
+	if (logQueData == NULL) {
+		ev3_led_set_color(LED_RED);		//malloc‚Å—Ìˆæ‚ªŠm•Û‚Å‚«‚È‚©‚Á‚½ê‡
+	}
 	que->head = 0;
 	que->num = 0;
 }
@@ -29,22 +35,26 @@ queueClass::~queueClass()
 	free(logQueData);
 }
 
-/*ï¿½lï¿½ï¿½ï¿½iï¿½[*/
-void queueClass::enqueue(int time,int iAnglerVelocity,signed char retLeftPWM,signed char retRightPWM,int iBatteryVoltage) {
+/*
+* ƒGƒ“ƒLƒ…[
+* ˆø” : •Û‘¶‚·‚éŠÔAŠp‘¬“xA¶PWMA‰EPWMAƒoƒbƒeƒŠ[c—Ê –ß‚è’l : –³‚µ
+*/
+void queueClass::enqueue(unsigned int time,int iAnglerVelocity,signed char retLeftPWM,signed char retRightPWM,int iBatteryVoltage) {
 	if ((que->num ) < QUEUE_SIZE) {
 		int iNum = (que->num + que->head ) % QUEUE_SIZE;
 		que->queArray[iNum] = {time,iAnglerVelocity,retLeftPWM,retRightPWM,iBatteryVoltage};
 		que->num++;
 
 	}
-	else    //ï¿½lï¿½ï¿½ï¿½iï¿½[ï¿½Å‚ï¿½ï¿½È‚ï¿½ï¿½ê‡
+	else    //200Œ(ƒLƒ…[‚Ì‘å‚«‚³)‚ğ’´‚¦‚Ä•Û‘¶‚µ‚æ‚¤‚Æ‚µ‚½ê‡
 	{
 		ev3_led_set_color(LED_RED);
 	}
 }
 
 /*
-*ï¿½lï¿½ï¿½ï¿½oï¿½ï¿½
+* ƒfƒLƒ…[
+* ˆø” : ƒtƒ@ƒCƒ‹o—Í‚·‚é\‘¢‘Ì –ß‚è’l : 0...‘‚«o‚·’l‚ª‚ ‚é‚Æ‚« 1...‘‚«o‚·’l‚ª‚È‚¢‚Æ‚«
 */
 int queueClass::dequeue(LogQueData *outputQue) {
 	if (que->num > 0) {

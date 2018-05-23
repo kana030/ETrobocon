@@ -1,9 +1,9 @@
 #pragma once
-#define QUEUE_SIZE (200)    //�ő��f�[�^��
+#define QUEUE_SIZE (200)    //キューの大きさ
 
 struct LogQueData
 {
-	int time;
+	unsigned int time;
 	int anglerVelocity;
 	signed char retLeftPWM;
 	signed char retRightPWM;

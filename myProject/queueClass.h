@@ -10,8 +10,8 @@ namespace ev3api {
 	public:
 		queueClass();
 		~queueClass();
-		void enqueue(int,int,signed char,signed char,int);	//�l���i�[����
-		int dequeue(LogQueData*);	//�l���o�͂���
+		void enqueue(unsigned int,int,signed char,signed char,int);	//エンキュー
+		int dequeue(LogQueData*);														//デキュー
 
 	private:
 		Que* que;
