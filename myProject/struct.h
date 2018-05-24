@@ -1,5 +1,5 @@
 #pragma once
-#define QUEUE_SIZE (200)    //ã‚­ãƒ¥ãƒ¼ã®å¤§ãã•
+#define QUEUE_SIZE (200)    //ƒLƒ…[‚Ì‘å‚«‚³
 
 struct LogQueData
 {

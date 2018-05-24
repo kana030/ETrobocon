@@ -164,7 +164,7 @@ void file_task(intptr_t unused)
 
   LogQueData* fileWriteQue;
   fileWriteQue = (struct LogQueData *)malloc(sizeof(struct LogQueData));
-  if (logQueData == NULL) {
+  if (fileWriteQue == NULL) {
 	  ev3_led_set_color(LED_RED);		//mallocで領域が確保できなかった場合
   }
 
@@ -180,12 +180,16 @@ void file_task(intptr_t unused)
   {
     fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧\n");
     while (1){
-      if(pqueueClass->dequeue(fileWriteQue) == 0){
+      if(pqueueClass->dequeue(fileWriteQue) == 0)
+      {
         pfileWriteClass->logFileWrite(fpLog,fileWriteQue);
+      }
+      else
+      {
+        fflush(fpLog);	//書き出す
       }
     }
   }
-  fflush(fpLog);	//書き出す
   fclose(fpLog);
   free(fileWriteQue);
 }
