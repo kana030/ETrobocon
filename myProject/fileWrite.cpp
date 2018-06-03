@@ -20,11 +20,12 @@ fileWriteClass::~fileWriteClass()
 * 引数：書き出すファイルのファイルポインタ、書き出す構造体
 */
 void fileWriteClass::logFileWrite(FILE *fpLog,LogQueData *logQueData) {
-	fprintf(fpLog,"%u,%d,%d,%d,%d\n",
+	fprintf(fpLog,"%u,%d,%d,%d,%d,%d\n",
 	logQueData->time,
 	logQueData->anglerVelocity,
 	logQueData->retLeftPWM,
 	logQueData->retRightPWM,
-	logQueData->batteryVoltage
+	logQueData->batteryVoltage,
+	logQueData->color
 );
 }

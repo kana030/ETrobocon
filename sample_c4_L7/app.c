@@ -251,7 +251,7 @@ static int sonar_alert(void)
 //*****************************************************************************
 static void tail_control(signed int angle)
 {
-    float pwm = (float)(angle - ev3_motor_get_counts(tail_motor))*P_GAIN; /* ”ä—á§Œä */
+    float pwm = (float)(angle - tail_motor->getCount())*P_GAIN; /* ”ä—á§Œä */
     /* PWMo—Í–O˜aˆ— */
     if (pwm > PWM_ABS_MAX)
     {
