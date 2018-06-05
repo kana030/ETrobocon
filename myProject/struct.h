@@ -3,12 +3,11 @@
 
 struct LogQueData
 {
-	unsigned int time;
+	uint32_t time;
 	int anglerVelocity;
 	signed char retLeftPWM;
 	signed char retRightPWM;
 	int batteryVoltage;
-	int color;
 };
 
 struct Que

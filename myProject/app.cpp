@@ -16,20 +16,13 @@
 
 #include "queueClass.h"
 #include "fileWriteClass.h"
+#include "PIDcontrol.h"
 
 #include "Motor.h"
 #include "GyroSensor.h"
 #include "Clock.h"
 #include "ColorSensor.h"
 #include "TouchSensor.h"
-
-//PID制御の値
-#define DELTA_T 0.004
-#define KP 0.7
-#define KI 0.0
-#define KD 0.0
-static short diff[2];
-static float integral;
 
 using namespace ev3api;
 
@@ -41,11 +34,9 @@ using namespace ev3api;
 #define _debug(x)
 #endif
 
-#define STRATE_SPEED (15)   //直進の際のスピード
-#define TURN_LEFT (-30)     //左折する際の値
-#define TURN_RIGHT (30)     //右折する際の値
+#define STRATE_SPEED (80)   //直進の際のスピード
 
-#define PWM_ABS_MAX 100
+#define PWM_ABS_MAX (80)
 
 Motor* myLeftMotor = new Motor(PORT_B);                 //モータ左
 Motor* myRightMotor = new Motor(PORT_A);                //モータ右
@@ -59,13 +50,13 @@ void getColor(int*);
 int checkColor(rgb_raw_t*);
 void file_task(intptr_t);
 void linetrace_task(intptr_t);
-float pid_sample(int,int);
 static void tail_control(int);
+
+float pid_control(int,int);
 
 int color_black = 0;
 int color_white = 0;
-float straightSpeed = 30;
-float turnSpeed = 10;
+
 rgb_raw_t rgb_val;
 
 queueClass *pqueueClass = new queueClass();
@@ -91,17 +82,18 @@ void main_task(intptr_t unused)
 
   while (1)
   {
+
     if (myTouchSensor->isPressed())
     {
       if (flag_start == false)     //走行開始前の場合
       {
-        myClock->reset();
         act_tsk(FILE_TASK);       //ファイルタスク開始
+        myClock->reset();
         //バランスコントロールの開始
         tail_control(0);
         ev3_sta_cyc(LINETRACE_TASK);
         flag_start = true;
-        myClock->wait(1000);
+        myClock->sleep(1000);
         ev3_led_set_color(LED_OFF);
       }
       else
@@ -141,20 +133,9 @@ void linetrace_task(intptr_t idx){
   iAnglerVelocity = myGyroSensor->getAnglerVelocity();
   iBatteryVoltage = ev3_battery_voltage_mV();
 
-
-    if (checkColor(&rgb_val)< judgeColor)         //黒の場合
-    {
-      turnSpeed = TURN_LEFT;
-    }
-    else   //白の場合
-    {
-      turnSpeed = TURN_RIGHT;
-    }
-
   balance_control(
-    (float)straightSpeed,
-    (float)turnSpeed,
-    //(float)pid_sample(checkColor(&rgb_val),judgeColor),
+    (float)STRATE_SPEED,
+    (float)pid_control(checkColor(&rgb_val),judgeColor),
     (float)iAnglerVelocity,
     (float)0,
     (float)myLeftMotor->getCount(),
@@ -166,23 +147,25 @@ void linetrace_task(intptr_t idx){
   iTime = myClock->now();
   myLeftMotor->setPWM(retLeftPWM);
   myRightMotor->setPWM(retRightPWM);
-  pqueueClass->enqueue(iTime,iAnglerVelocity,retLeftPWM,retRightPWM,iBatteryVoltage,checkColor(&rgb_val));
+  pqueueClass->enqueue(iTime,iAnglerVelocity,retLeftPWM,retRightPWM,iBatteryVoltage);
 }
+
 /*
 * キャリブレーションを行う関数
 */
 void getColor(int* color){
   while (1){
     if (myTouchSensor->isPressed()){
-        myColorSensor->getRawColor(rgb_val);
+      myColorSensor->getRawColor(rgb_val);
       *color = checkColor(&rgb_val);
       ev3_led_set_color(LED_GREEN);
-      myClock->wait(1000);
+      myClock->sleep(500);
       break;
     }
   }
   ev3_led_set_color(LED_OFF);
 }
+
 /*
 * ファイル書き込みを行うタスク
 */
@@ -203,42 +186,20 @@ void file_task(intptr_t unused)
   }
   else
   {
-    //fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧\n");
-    fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧,カラーセンサの値,白%d,黒%d\n",color_white,color_black);
-    while (1){
+    fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧\n");
+    while (1)
+    {
       if(pqueueClass->dequeue(fileWriteQue) == 0)
       {
         pfileWriteClass->logFileWrite(fpLog,fileWriteQue);
-      }
-      else
-      {
-        fflush(fpLog);	//書き出す
+      }else{
+
       }
     }
   }
+  fflush(fpLog);	//書き出す
   fclose(fpLog);
   free(fileWriteQue);
-}
-
-
-float pid_sample(int sensor_val,int target_val){
-
-  float p,i,d;
-  diff[0] = diff[1];
-  diff[1] = sensor_val - target_val;
-  integral += (diff[1] + diff[0]) / 2.0 * DELTA_T;
-
-  p= KP*diff[1];
-  i = KI * integral;
-  d = KD * (diff[1] - diff[0])/DELTA_T;
-  if(p+i+d > 100){
-    return 100;
-  }else if(p+i+d< -100){
-    return -100;
-  }
-  else{
-    return p+i+d;
-  }
 }
 
 static void tail_control(int angle)

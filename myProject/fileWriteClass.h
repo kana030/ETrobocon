@@ -11,8 +11,5 @@ namespace ev3api{
         fileWriteClass();
         ~fileWriteClass();
 		void logFileWrite(FILE*,LogQueData*);
-
-    private:
-
     };
 }
