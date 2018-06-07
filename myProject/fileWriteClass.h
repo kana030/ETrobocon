@@ -1,3 +1,4 @@
+#pragma once
 #include "ev3api.h"
 #include "stdlib.h"
 #include "struct.h"
