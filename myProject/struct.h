@@ -8,7 +8,6 @@ struct LogQueData
 	signed char retLeftPWM;
 	signed char retRightPWM;
 	int batteryVoltage;
-	int color;
 };
 
 struct Que

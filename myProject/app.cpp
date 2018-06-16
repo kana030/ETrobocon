@@ -34,7 +34,7 @@ using namespace ev3api;
 #define _debug(x)
 #endif
 
-#define STRATE_SPEED (70)   //直進の際のスピード
+#define STRATE_SPEED (80)   //直進の際のスピード
 
 #define PWM_ABS_MAX (80)
 
@@ -49,15 +49,13 @@ TouchSensor* myTouchSensor = new TouchSensor(PORT_1);   //タッチセンサ
 void getColor(int*);
 int checkColor(rgb_raw_t*);
 void file_task(intptr_t);
-void linetrace_cyc(intptr_t);
+void linetrace_task(intptr_t);
 static void tail_control(int);
 
 float pid_control(int,int);
 
-int color_black = 0;  //黒
-int color_white = 0;  //白
-int judgeColor = 0; //灰色
-int getGyroOffset = 0;  //ジャイロセンサオフセット
+int color_black = 0;
+int color_white = 0;
 
 rgb_raw_t rgb_val;
 
@@ -81,48 +79,35 @@ void main_task(intptr_t unused)
   balance_init();     //初期化
   myLeftMotor->reset();
   myRightMotor->reset();
-  judgeColor = (color_black + color_white) / 2;
 
   while (1)
   {
-    if (myTouchSensor->isPressed())   //タッチセンサが押されたとき
+    myClock->sleep(4);
+    if (myTouchSensor->isPressed())
     {
-      if (flag_start)         //走行終わり
+      if (flag_start == false)     //走行開始前の場合
       {
-        ev3_led_set_color(LED_ORANGE);
-        ev3_stp_cyc(LINETRACE_CYC);
-        myLeftMotor->setPWM(0);
-        myRightMotor->setPWM(0);
-        myClock->sleep(500);  //fflushのため
-        break;
-      }
-      else    //走行開始
-      {
-        //getGyroOffset = myTailMotor->getCount()+180;
-        //getGyroOffset = (2/3) * ( myTailMotor->getCount() + 70);
-        //myGyroSensor->setOffset(getGyroOffset);
-        tail_control(0);
         act_tsk(FILE_TASK);       //ファイルタスク開始
         myClock->reset();
         //バランスコントロールの開始
-        ev3_sta_cyc(LINETRACE_CYC);
+        tail_control(0);
+        ev3_sta_cyc(LINETRACE_TASK);
         flag_start = true;
-        myClock->sleep(500);
+        myClock->sleep(1000);
         ev3_led_set_color(LED_OFF);
-      }
-    }
-    else    //タッチセンサが押されていないとき
-    {
-      if(flag_start)
-      {
-        myClock->sleep(4);
       }
       else
       {
-        tail_control(90);
+        ev3_led_set_color(LED_ORANGE);
+        ev3_stp_cyc(LINETRACE_TASK);
+        myLeftMotor->setPWM(0);
+        myRightMotor->setPWM(0);
+        break;
       }
     }
-
+    else if(flag_start == false &&  !myTouchSensor->isPressed()){
+      tail_control(90);
+    }
   }
   delete pqueueClass;
   delete pfileWriteClass;
@@ -132,15 +117,19 @@ void main_task(intptr_t unused)
 * 4msecごとに行うタスク
 * バランスコントロール、カラーセンサの値
 */
-void linetrace_cyc(intptr_t idx)
-{
+void linetrace_task(intptr_t idx){
+
   //ログの値の変数
+  int iTime;
   int iAnglerVelocity;
   signed char retLeftPWM;
   signed char retRightPWM;
   int iBatteryVoltage;
-  //カラーセンサの取得
+
   myColorSensor->getRawColor(rgb_val);
+  //カラーセンサの取得
+  int judgeColor = (color_black + color_white) / 2;
+
   iAnglerVelocity = myGyroSensor->getAnglerVelocity();
   iBatteryVoltage = ev3_battery_voltage_mV();
 
@@ -155,10 +144,10 @@ void linetrace_cyc(intptr_t idx)
     &retLeftPWM,
     &retRightPWM
   );
+  iTime = myClock->now();
   myLeftMotor->setPWM(retLeftPWM);
   myRightMotor->setPWM(retRightPWM);
-  //pqueueClass->enqueue(iTime,iAnglerVelocity,retLeftPWM,retRightPWM,iBatteryVoltage);
-  pqueueClass->enqueue(myClock->now(),iAnglerVelocity,retLeftPWM,retRightPWM,iBatteryVoltage,checkColor(&rgb_val));
+  pqueueClass->enqueue(iTime,iAnglerVelocity,retLeftPWM,retRightPWM,iBatteryVoltage);
 }
 
 /*
@@ -184,8 +173,7 @@ void file_task(intptr_t unused)
 {
   LogQueData* fileWriteQue;
   fileWriteQue = (struct LogQueData *)malloc(sizeof(struct LogQueData));
-  if (fileWriteQue == NULL)
-   {
+  if (fileWriteQue == NULL) {
     ev3_led_set_color(LED_RED);		//mallocで領域が確保できなかった場合
   }
 
@@ -198,19 +186,18 @@ void file_task(intptr_t unused)
   }
   else
   {
-    //fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧\n");
-    fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧,カラーセンサの値,白%d,黒%d\n",color_white,color_black);
+    fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧\n");
     while (1)
     {
       if(pqueueClass->dequeue(fileWriteQue) == 0)
       {
         pfileWriteClass->logFileWrite(fpLog,fileWriteQue);
-      }else
-      {
-        fflush(fpLog);	//書き出す
+      }else{
+
       }
     }
   }
+  fflush(fpLog);	//書き出す
   fclose(fpLog);
   free(fileWriteQue);
 }
@@ -218,8 +205,7 @@ void file_task(intptr_t unused)
 static void tail_control(int angle)
 {
   float pwm = (float)( (int)angle - myTailMotor->getCount() ); /* 比例制御 */
-  int Kp = 1;
-  pwm = pwm * Kp;
+  pwm = pwm * KP;
   /* PWM出力飽和処理 */
   if (pwm > PWM_ABS_MAX)
   {
