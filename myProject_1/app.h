@@ -85,7 +85,7 @@ extern void	task(intptr_t exinf);
 extern void	main_task(intptr_t exinf);
 extern void balance_task(intptr_t exinf);
 extern void idle_task(intptr_t exinf);
-extern void linetrace_cyc(intptr_t exinf);    //TOPPERSÉ}ÉNÉçÇ≈ÇÕÇ»Ç¢Ç™í«â¡
+extern void linetrace_cyc(intptr_t exinf);
 extern void file_task(intptr_t exinf);
 
 //extern void	tex_routine(TEXPTN texptn, intptr_t exinf);
