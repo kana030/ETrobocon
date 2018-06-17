@@ -34,7 +34,7 @@ using namespace ev3api;
 #define _debug(x)
 #endif
 
-#define STRATE_SPEED (100)   //直進の際のスピード
+#define STRATE_SPEED (130)   //直進の際のスピード
 #define PWM_ABS_MAX (80)
 
 Motor* myLeftMotor = new Motor(PORT_B);                 //モータ左
