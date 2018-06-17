@@ -11,6 +11,7 @@ namespace ev3api {
 		queueClass();
 		~queueClass();
 		void enqueue(uint32_t,int,signed char,signed char,int);	//エンキュー
+		void enqueue(uint32_t,int,signed char,signed char,int,int);	//エンキュー
 		int dequeue(LogQueData*);														//デキュー
 
 	private:

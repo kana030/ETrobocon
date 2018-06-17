@@ -53,6 +53,23 @@ void queueClass::enqueue(uint32_t time,int iAnglerVelocity,signed char retLeftPW
 }
 
 /*
+* エンキュー
+* 引数 : 保存する時間、角速度、左PWM、右PWM、バッテリー残量、カラーセンサ取得値 戻り値 : 無し
+*/
+void queueClass::enqueue(uint32_t time,int iAnglerVelocity,signed char retLeftPWM,signed char retRightPWM,int iBatteryVoltage,int iColor) {
+	if ((que->num ) < QUEUE_SIZE) {
+		int iNum = (que->num + que->head ) % QUEUE_SIZE;
+		que->queArray[iNum] = {time,iAnglerVelocity,retLeftPWM,retRightPWM,iBatteryVoltage,iColor};
+		que->num++;
+		ev3_led_set_color(LED_OFF);
+	}
+	else    //200件(キューの大きさ)を超えて保存しようとした場合
+	{
+		ev3_led_set_color(LED_RED);
+	}
+}
+
+/*
 * デキュー
 * 引数 : ファイル出力する構造体 戻り値 : 0...書き出す値があるとき 1...書き出す値がないとき
 */

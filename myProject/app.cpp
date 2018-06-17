@@ -34,8 +34,7 @@ using namespace ev3api;
 #define _debug(x)
 #endif
 
-#define STRATE_SPEED (80)   //直進の際のスピード
-
+#define STRATE_SPEED (100)   //直進の際のスピード
 #define PWM_ABS_MAX (80)
 
 Motor* myLeftMotor = new Motor(PORT_B);                 //モータ左
@@ -49,13 +48,14 @@ TouchSensor* myTouchSensor = new TouchSensor(PORT_1);   //タッチセンサ
 void getColor(int*);
 int checkColor(rgb_raw_t*);
 void file_task(intptr_t);
-void linetrace_task(intptr_t);
+void linetrace_cyc(intptr_t);
 static void tail_control(int);
 
 float pid_control(int,int);
 
 int color_black = 0;
 int color_white = 0;
+int judgeColor = 0;
 
 rgb_raw_t rgb_val;
 
@@ -73,6 +73,7 @@ void main_task(intptr_t unused)
   //キャリブレーション
   getColor(&color_white);
   getColor(&color_black);
+  judgeColor = (color_black + color_white) / 2;
 
   myLeftMotor->setPWM(0);
   myRightMotor->setPWM(0);
@@ -85,28 +86,29 @@ void main_task(intptr_t unused)
     myClock->sleep(4);
     if (myTouchSensor->isPressed())
     {
-      if (flag_start == false)     //走行開始前の場合
+      if (!flag_start)     //走行開始前の場合
       {
         act_tsk(FILE_TASK);       //ファイルタスク開始
         myClock->reset();
         //バランスコントロールの開始
         tail_control(0);
-        ev3_sta_cyc(LINETRACE_TASK);
+        ev3_sta_cyc(LINETRACE_CYC);
         flag_start = true;
-        myClock->sleep(1000);
+        myClock->sleep(500);
         ev3_led_set_color(LED_OFF);
       }
-      else
+      else          //走行終了
       {
+        ev3_stp_cyc(LINETRACE_CYC);
         ev3_led_set_color(LED_ORANGE);
-        ev3_stp_cyc(LINETRACE_TASK);
         myLeftMotor->setPWM(0);
         myRightMotor->setPWM(0);
         break;
       }
     }
-    else if(flag_start == false &&  !myTouchSensor->isPressed()){
-      tail_control(90);
+    else
+    {
+      if(!flag_start) tail_control(90);
     }
   }
   delete pqueueClass;
@@ -117,7 +119,7 @@ void main_task(intptr_t unused)
 * 4msecごとに行うタスク
 * バランスコントロール、カラーセンサの値
 */
-void linetrace_task(intptr_t idx){
+void linetrace_cyc(intptr_t idx){
 
   //ログの値の変数
   int iTime;
@@ -128,7 +130,6 @@ void linetrace_task(intptr_t idx){
 
   myColorSensor->getRawColor(rgb_val);
   //カラーセンサの取得
-  int judgeColor = (color_black + color_white) / 2;
 
   iAnglerVelocity = myGyroSensor->getAnglerVelocity();
   iBatteryVoltage = ev3_battery_voltage_mV();
@@ -147,7 +148,7 @@ void linetrace_task(intptr_t idx){
   iTime = myClock->now();
   myLeftMotor->setPWM(retLeftPWM);
   myRightMotor->setPWM(retRightPWM);
-  pqueueClass->enqueue(iTime,iAnglerVelocity,retLeftPWM,retRightPWM,iBatteryVoltage);
+  pqueueClass->enqueue(iTime,iAnglerVelocity,retLeftPWM,retRightPWM,iBatteryVoltage,judgeColor);  //ジャッジカラーじゃない
 }
 
 /*
@@ -186,7 +187,7 @@ void file_task(intptr_t unused)
   }
   else
   {
-    fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧\n");
+    fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧,%d,%d\n",color_black,color_white);
     while (1)
     {
       if(pqueueClass->dequeue(fileWriteQue) == 0)
@@ -196,8 +197,8 @@ void file_task(intptr_t unused)
 
       }
     }
+    fflush(fpLog);	//書き出す　//ここでいいのかわからない
   }
-  fflush(fpLog);	//書き出す
   fclose(fpLog);
   free(fileWriteQue);
 }
@@ -205,7 +206,7 @@ void file_task(intptr_t unused)
 static void tail_control(int angle)
 {
   float pwm = (float)( (int)angle - myTailMotor->getCount() ); /* 比例制御 */
-  pwm = pwm * KP;
+  //pwm = pwm * KP;
   /* PWM出力飽和処理 */
   if (pwm > PWM_ABS_MAX)
   {
