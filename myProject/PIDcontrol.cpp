@@ -2,7 +2,7 @@
 
 float pid_control(int sensor_val,int target_val){
   float p, i,d;
-  static short diff[2];
+  static int diff[2];
   static float integral;
   diff[0] = diff[1];
   diff[1] = sensor_val - target_val;

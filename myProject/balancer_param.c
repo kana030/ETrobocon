@@ -29,5 +29,8 @@ float K_THETADOT = 7.5F; /* モータ目標回転角速度係数 */
 
 const float BATTERY_GAIN = 0.001089F;	/* PWM出力算出用バッテリ電圧補正係数 */
 const float BATTERY_OFFSET = 0.625F;	/* PWM出力算出用バッテリ電圧補正オフセット */
+//稲葉さん↓
+//const float BATTERY_GAIN = 0.00136F;	/* PWM出力算出用バッテリ電圧補正係数 */
+//const float BATTERY_OFFSET = 0.70F;	/* PWM出力算出用バッテリ電圧補正オフセット */
 
 /******************************** END OF FILE ********************************/

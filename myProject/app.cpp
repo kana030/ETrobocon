@@ -70,14 +70,25 @@ void main_task(intptr_t unused)
   bool flag_start = false;    //バランスコントロールが開始したか
 
   ev3_led_set_color(LED_OFF);
+  myClock->sleep(5000);
+  while(1){
+    if(myGyroSensor->getAnglerVelocity() == 0){
+      myGyroSensor->reset();
+      ev3_led_set_color(LED_GREEN);
+      myClock->sleep(1000);
+      ev3_led_set_color(LED_OFF);
+      break;
+    }
+  }
   //キャリブレーション
+  getColor(&color_white); //  おまじない
   getColor(&color_white);
   getColor(&color_black);
   judgeColor = (color_black + color_white) / 2;
 
   myLeftMotor->setPWM(0);
   myRightMotor->setPWM(0);
-  balance_init();     //初期化
+  balance_init();         //初期化
   myLeftMotor->reset();
   myRightMotor->reset();
 
@@ -127,16 +138,16 @@ void linetrace_cyc(intptr_t idx){
   signed char retLeftPWM;
   signed char retRightPWM;
   int iBatteryVoltage;
-
+  int iColor;
   myColorSensor->getRawColor(rgb_val);
   //カラーセンサの取得
-
+  iColor = checkColor(&rgb_val);
   iAnglerVelocity = myGyroSensor->getAnglerVelocity();
   iBatteryVoltage = ev3_battery_voltage_mV();
 
   balance_control(
     (float)STRATE_SPEED,
-    (float)pid_control(checkColor(&rgb_val),judgeColor),
+    (float)pid_control(iColor,judgeColor),
     (float)iAnglerVelocity,
     (float)0,
     (float)myLeftMotor->getCount(),
@@ -148,7 +159,7 @@ void linetrace_cyc(intptr_t idx){
   iTime = myClock->now();
   myLeftMotor->setPWM(retLeftPWM);
   myRightMotor->setPWM(retRightPWM);
-  pqueueClass->enqueue(iTime,iAnglerVelocity,retLeftPWM,retRightPWM,iBatteryVoltage,judgeColor);  //ジャッジカラーじゃない
+  pqueueClass->enqueue(iTime,iAnglerVelocity,retLeftPWM,retRightPWM,iBatteryVoltage,iColor);
 }
 
 /*
