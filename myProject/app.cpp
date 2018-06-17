@@ -12,6 +12,12 @@
 #include "libcpp-test.h"
 #include "stdlib.h"
 
+#include "struct.h"
+
+#include "queueClass.h"
+#include "fileWriteClass.h"
+#include "PIDcontrol.h"
+
 #include "Motor.h"
 #include "GyroSensor.h"
 #include "Clock.h"
@@ -28,92 +34,148 @@ using namespace ev3api;
 #define _debug(x)
 #endif
 
-#define QUEUE_SIZE (200)    //最大データ数
-#define STRATE_SPEED (15)   //直進の際のスピード
-#define TURN_LEFT (-30)     //左折する際の値
-#define TURN_RIGHT (30)     //右折する際の値
-#define COLOR_BLACK (10)    //カラーセンサの黒の値
-#define COLOR_WHITE (30)   //カラーセンサの白の値
+#define STRATE_SPEED (100)   //直進の際のスピード
+#define PWM_ABS_MAX (80)
 
-typedef struct QueData
-{
-    int time;
-    int anglerVelocity;
-    signed char retLeftPWM;
-    signed char retRightPWM;
-    int batteryVoltage;
-} QueData;
+Motor* myLeftMotor = new Motor(PORT_B);                 //モータ左
+Motor* myRightMotor = new Motor(PORT_A);                //モータ右
+Motor* myTailMotor = new Motor(PORT_C);                 //尻尾モータ
+GyroSensor* myGyroSensor = new GyroSensor(PORT_4);      //ジャイロセンサ
+Clock* myClock = new Clock();                           //時間
+ColorSensor* myColorSensor = new ColorSensor(PORT_2);   //カラーセンサ
+TouchSensor* myTouchSensor = new TouchSensor(PORT_1);   //タッチセンサ
 
-typedef struct Que
-{
-    int head;
-    int num;
-    struct QueData qyeArray[QUEUE_SIZE];
-} Que;
-
-Motor* myLeftMotor;             //モータ左
-Motor* myRightMotor;            //モータ右
-GyroSensor* myGyroSensor;       //ジャイロセンサ
-Clock* myClock;                 //時間
-ColorSensor* myColorSensor;     //カラーセンサ
-
-//ログの値の変数
-int iAnglerVelocity;
-signed char retLeftPWM;
-signed char retRightPWM;
-int iRightMotor;
-int iLeftMotor;
-int iBatteryVoltage;
-
-void queue_reset(Que*);
-void enqueue(Que*, int, int, signed char, signed char, int);
-void dequeue(Que*, FILE*);
-void queue_clear(Que*);
+void getColor(int*);
+int checkColor(rgb_raw_t*);
 void file_task(intptr_t);
+void linetrace_cyc(intptr_t);
+static void tail_control(int);
 
+float pid_control(int,int);
 
-Que que;
+int color_black = 0;
+int color_white = 0;
+int judgeColor = 0;
 
-float straightSpeed = 10;
-float turnSpeed = 0;
+rgb_raw_t rgb_val;
+
+queueClass *pqueueClass = new queueClass();
+fileWriteClass *pfileWriteClass = new fileWriteClass();
 
 /*
 * メインタスク
 */
 void main_task(intptr_t unused)
 {
-    myLeftMotor = new Motor(PORT_B);
-    myRightMotor = new Motor(PORT_A);
-    myGyroSensor = new GyroSensor(PORT_4);
-    myClock = new Clock();
-    myClock->reset();
-    queue_reset(&que);
-    act_tsk(FILE_TASK);
+  bool flag_start = false;    //バランスコントロールが開始したか
 
-    //バランスコントロールの開始
-    while (1)
-    {
-        iAnglerVelocity = myGyroSensor->getAnglerVelocity();
-        iBatteryVoltage = ev3_battery_voltage_mV();
-
-        balance_control(
-            (float)straightSpeed,
-            (float)turnSpeed,
-            (float)iAnglerVelocity,
-            (float)0,
-            (float)myLeftMotor->getCount(),
-            (float)myRightMotor->getCount(),
-            (float)iBatteryVoltage,
-            &retLeftPWM,
-            &retRightPWM
-            );
-
-        myLeftMotor->setPWM(retLeftPWM);
-        myRightMotor->setPWM(retRightPWM);
-        enqueue(&que, myClock->now(), iAnglerVelocity, retLeftPWM, retRightPWM, iBatteryVoltage);
-        myClock->sleep(4);
+  ev3_led_set_color(LED_OFF);
+  myClock->sleep(5000);
+  while(1){
+    if(myGyroSensor->getAnglerVelocity() == 0){
+      myGyroSensor->reset();
+      ev3_led_set_color(LED_GREEN);
+      myClock->sleep(1000);
+      ev3_led_set_color(LED_OFF);
+      break;
     }
-    queue_clear(&que);
+  }
+  //キャリブレーション
+  getColor(&color_white); //  おまじない
+  getColor(&color_white);
+  getColor(&color_black);
+  judgeColor = (color_black + color_white) / 2;
+
+  myLeftMotor->setPWM(0);
+  myRightMotor->setPWM(0);
+  balance_init();         //初期化
+  myLeftMotor->reset();
+  myRightMotor->reset();
+
+  while (1)
+  {
+    myClock->sleep(4);
+    if (myTouchSensor->isPressed())
+    {
+      if (!flag_start)     //走行開始前の場合
+      {
+        act_tsk(FILE_TASK);       //ファイルタスク開始
+        myClock->reset();
+        //バランスコントロールの開始
+        tail_control(0);
+        ev3_sta_cyc(LINETRACE_CYC);
+        flag_start = true;
+        myClock->sleep(500);
+        ev3_led_set_color(LED_OFF);
+      }
+      else          //走行終了
+      {
+        ev3_stp_cyc(LINETRACE_CYC);
+        ev3_led_set_color(LED_ORANGE);
+        myLeftMotor->setPWM(0);
+        myRightMotor->setPWM(0);
+        break;
+      }
+    }
+    else
+    {
+      if(!flag_start) tail_control(90);
+    }
+  }
+  delete pqueueClass;
+  delete pfileWriteClass;
+}
+
+/*
+* 4msecごとに行うタスク
+* バランスコントロール、カラーセンサの値
+*/
+void linetrace_cyc(intptr_t idx){
+
+  //ログの値の変数
+  int iTime;
+  int iAnglerVelocity;
+  signed char retLeftPWM;
+  signed char retRightPWM;
+  int iBatteryVoltage;
+  int iColor;
+  myColorSensor->getRawColor(rgb_val);
+  //カラーセンサの取得
+  iColor = checkColor(&rgb_val);
+  iAnglerVelocity = myGyroSensor->getAnglerVelocity();
+  iBatteryVoltage = ev3_battery_voltage_mV();
+
+  balance_control(
+    (float)STRATE_SPEED,
+    (float)pid_control(iColor,judgeColor),
+    (float)iAnglerVelocity,
+    (float)0,
+    (float)myLeftMotor->getCount(),
+    (float)myRightMotor->getCount(),
+    (float)iBatteryVoltage,
+    &retLeftPWM,
+    &retRightPWM
+  );
+  iTime = myClock->now();
+  myLeftMotor->setPWM(retLeftPWM);
+  myRightMotor->setPWM(retRightPWM);
+  pqueueClass->enqueue(iTime,iAnglerVelocity,retLeftPWM,retRightPWM,iBatteryVoltage,iColor);
+}
+
+/*
+* キャリブレーションを行う関数
+*/
+void getColor(int* color){
+  while (1){
+    if (myTouchSensor->isPressed()){
+      myColorSensor->getRawColor(rgb_val);
+      *color = checkColor(&rgb_val);
+      ev3_led_set_color(LED_GREEN);
+      myClock->sleep(500);
+      break;
+    }
+  }
+  ev3_led_set_color(LED_OFF);
 }
 
 /*
@@ -121,100 +183,62 @@ void main_task(intptr_t unused)
 */
 void file_task(intptr_t unused)
 {
-    FILE* fpLog;
-    fpLog = fopen("log.csv", "a");
-    if (fpLog == NULL)
-    {
-        return;
-    }
-    else
-    {
-        fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧\n");
-        while (1){
-            dequeue(&que, fpLog);
-            myClock->sleep(4);
-        }
-    }
-    fclose(fpLog);
-}
+  LogQueData* fileWriteQue;
+  fileWriteQue = (struct LogQueData *)malloc(sizeof(struct LogQueData));
+  if (fileWriteQue == NULL) {
+    ev3_led_set_color(LED_RED);		//mallocで領域が確保できなかった場合
+  }
 
-/*
-* カラーセンサの値の読み取りを行うタスク
-*/
-void sensor_task(intptr_t unused)
-{
-    myColorSensor = new ColorSensor(PORT_2);
-
+  //ログの値の変数
+  FILE *fpLog;
+  fpLog = fopen("log_wakana.csv", "a");
+  if (fpLog == NULL)
+  {
+    return;
+  }
+  else
+  {
+    fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧,%d,%d\n",color_black,color_white);
     while (1)
     {
-        if (myColorSensor->getBrightness() < COLOR_BLACK)         //黒の場合
-        {
-            turnSpeed = TURN_RIGHT;
-        }
-        else if (myColorSensor->getBrightness() > COLOR_WHITE)   //白の場合
-        {
-            turnSpeed = TURN_LEFT;
-        }
-        else
-        {
-            turnSpeed = 0;  //直進
-        }
-        myClock->sleep(4);
+      if(pqueueClass->dequeue(fileWriteQue) == 0)
+      {
+        pfileWriteClass->logFileWrite(fpLog,fileWriteQue);
+      }else{
+
+      }
     }
+    fflush(fpLog);	//書き出す　//ここでいいのかわからない
+  }
+  fclose(fpLog);
+  free(fileWriteQue);
 }
 
-
-/*
-* キューの初期化
-*/
-void queue_reset(Que *que)
+static void tail_control(int angle)
 {
-    que->head = 0;
-    que->num = 0;
-    que = (Que *)malloc(sizeof(Que) * QUEUE_SIZE);
-    que->qyeArray[que->num].time = 0;
-    que->qyeArray[que->num].anglerVelocity = 0;
-    que->qyeArray[que->num].retLeftPWM = 0;
-    que->qyeArray[que->num].retRightPWM = 0;
-    que->qyeArray[que->num].batteryVoltage = 0;
+  float pwm = (float)( (int)angle - myTailMotor->getCount() ); /* 比例制御 */
+  //pwm = pwm * KP;
+  /* PWM出力飽和処理 */
+  if (pwm > PWM_ABS_MAX)
+  {
+    pwm = PWM_ABS_MAX;
+  }
+  else if (pwm < -PWM_ABS_MAX)
+  {
+    pwm = -PWM_ABS_MAX;
+  }
 
+  if (pwm == 0)
+  {
+    myTailMotor->setPWM(0);
+  }
+  else
+  {
+    myTailMotor->setPWM((signed char)pwm);
+  }
 }
 
-/*
-* キューに値を代入
-*/
-void enqueue(Que *que, int time, int anglerVelocity, signed char retLeftPWM, signed char retRightPWM, int batteryVoltage)
-{
-    if (que->num < QUEUE_SIZE) {
-        int iNum = (que->head + que->num) % QUEUE_SIZE;
-        que->qyeArray[iNum].time = time;
-        que->qyeArray[iNum].anglerVelocity = anglerVelocity;
-        que->qyeArray[iNum].retLeftPWM = retLeftPWM;
-        que->qyeArray[iNum].retRightPWM = retRightPWM;
-        que->qyeArray[iNum].batteryVoltage = batteryVoltage;
-        que->num++;
-    }
-}
+int checkColor(rgb_raw_t *rgb_get_color){
 
-/*
-* キューの値をファイルに書き出す
-*/
-void dequeue(Que *que, FILE* fpLog)
-{
-    if (que->num > 0) {
-        fprintf(
-            fpLog, "%d,%d,%d,%d,%d\n",
-            que->qyeArray[que->head].time,               //システムクロック時刻
-            que->qyeArray[que->head].anglerVelocity,     //ジャイロ角速度
-            que->qyeArray[que->head].retLeftPWM,         //左PWM
-            que->qyeArray[que->head].retRightPWM,        //右PWM
-            que->qyeArray[que->head].batteryVoltage      //電圧
-            );
-        que->head = (que->head + 1) % QUEUE_SIZE;
-        que->num--;
-    }
-}
-
-void queue_clear(Que *que){
-    free(que);
+  return (rgb_get_color->r+rgb_get_color->g+rgb_get_color->b)/3;
 }

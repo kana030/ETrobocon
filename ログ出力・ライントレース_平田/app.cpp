@@ -17,6 +17,7 @@
 #include "Clock.h"
 #include "ColorSensor.h"
 #include "TouchSensor.h"
+#include "SonarSensor.h"
 
 using namespace ev3api;
 
@@ -42,6 +43,9 @@ typedef struct QueData
     signed char retLeftPWM;
     signed char retRightPWM;
     int batteryVoltage;
+	int tailMotor;
+	int Urutora;
+	int Color;
 } QueData;
 
 typedef struct Que
@@ -55,7 +59,10 @@ Motor* myLeftMotor;             //モータ左
 Motor* myRightMotor;            //モータ右
 GyroSensor* myGyroSensor;       //ジャイロセンサ
 Clock* myClock;                 //時間
-ColorSensor* myColorSensor;     //カラーセンサ
+ColorSensor* myColorSensor = new ColorSensor(PORT_2);     //カラーセンサ
+
+SonarSensor* mySonor;
+Motor* tailMotor;
 
 //ログの値の変数
 int iAnglerVelocity;
@@ -66,7 +73,7 @@ int iLeftMotor;
 int iBatteryVoltage;
 
 void queue_reset(Que*);
-void enqueue(Que*, int, int, signed char, signed char, int);
+void enqueue(Que*, int, int, signed char, signed char, int,int,int,int);
 void dequeue(Que*, FILE*);
 void queue_clear(Que*);
 void file_task(intptr_t);
@@ -84,10 +91,12 @@ void main_task(intptr_t unused)
 {
     myLeftMotor = new Motor(PORT_B);
     myRightMotor = new Motor(PORT_A);
+	tailMotor = new Motor(PORT_C);
     myGyroSensor = new GyroSensor(PORT_4);
     myClock = new Clock();
     myClock->reset();
     queue_reset(&que);
+	mySonor = new SonarSensor(PORT_3);
     act_tsk(FILE_TASK);
 
     //バランスコントロールの開始
@@ -110,7 +119,7 @@ void main_task(intptr_t unused)
 
         myLeftMotor->setPWM(retLeftPWM);
         myRightMotor->setPWM(retRightPWM);
-        enqueue(&que, myClock->now(), iAnglerVelocity, retLeftPWM, retRightPWM, iBatteryVoltage);
+        enqueue(&que, myClock->now(), iAnglerVelocity, retLeftPWM, retRightPWM, iBatteryVoltage,tailMotor->getCount(),mySonor->getDistance(), myColorSensor->getBrightness());
         myClock->sleep(4);
     }
     queue_clear(&que);
@@ -129,7 +138,7 @@ void file_task(intptr_t unused)
     }
     else
     {
-        fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧\n");
+        fprintf(fpLog, "システムクロック時刻,ジャイロ角速度,左PWM,右PWM,電圧,しっぽ,超音波,カラー\n");
         while (1){
             dequeue(&que, fpLog);
             myClock->sleep(4);
@@ -143,7 +152,7 @@ void file_task(intptr_t unused)
 */
 void sensor_task(intptr_t unused)
 {
-    myColorSensor = new ColorSensor(PORT_2);
+    //myColorSensor = new ColorSensor(PORT_2);
 
     while (1)
     {
@@ -183,7 +192,7 @@ void queue_reset(Que *que)
 /*
 * キューに値を代入
 */
-void enqueue(Que *que, int time, int anglerVelocity, signed char retLeftPWM, signed char retRightPWM, int batteryVoltage)
+void enqueue(Que *que, int time, int anglerVelocity, signed char retLeftPWM, signed char retRightPWM, int batteryVoltage,int tailMotor,int Urutora,int color)
 {
     if (que->num < QUEUE_SIZE) {
         int iNum = (que->head + que->num) % QUEUE_SIZE;
@@ -192,6 +201,9 @@ void enqueue(Que *que, int time, int anglerVelocity, signed char retLeftPWM, sig
         que->qyeArray[iNum].retLeftPWM = retLeftPWM;
         que->qyeArray[iNum].retRightPWM = retRightPWM;
         que->qyeArray[iNum].batteryVoltage = batteryVoltage;
+		que->qyeArray[iNum].tailMotor = tailMotor;
+		que->qyeArray[iNum].Urutora = Urutora;
+		que->qyeArray[iNum].Color = color;
         que->num++;
     }
 }
@@ -203,12 +215,15 @@ void dequeue(Que *que, FILE* fpLog)
 {
     if (que->num > 0) {
         fprintf(
-            fpLog, "%d,%d,%d,%d,%d\n",
+            fpLog, "%d,%d,%d,%d,%d,%d,%d,%d\n",
             que->qyeArray[que->head].time,               //システムクロック時刻
             que->qyeArray[que->head].anglerVelocity,     //ジャイロ角速度
             que->qyeArray[que->head].retLeftPWM,         //左PWM
             que->qyeArray[que->head].retRightPWM,        //右PWM
-            que->qyeArray[que->head].batteryVoltage      //電圧
+            que->qyeArray[que->head].batteryVoltage,      //電圧
+			que->qyeArray[que->head].tailMotor,      //電圧
+			que->qyeArray[que->head].Urutora,      //電圧
+			que->qyeArray[que->head].Color     //電圧
             );
         que->head = (que->head + 1) % QUEUE_SIZE;
         que->num--;
