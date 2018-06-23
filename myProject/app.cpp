@@ -34,7 +34,7 @@ using namespace ev3api;
 #define _debug(x)
 #endif
 
-#define STRATE_SPEED (130)   //直進の際のスピード
+#define STRATE_SPEED (120)   //直進の際のスピード
 #define PWM_ABS_MAX (80)
 
 Motor* myLeftMotor = new Motor(PORT_B);                 //モータ左
@@ -131,7 +131,6 @@ void main_task(intptr_t unused)
 * バランスコントロール、カラーセンサの値
 */
 void linetrace_cyc(intptr_t idx){
-
   //ログの値の変数
   int iTime;
   int iAnglerVelocity;
@@ -204,12 +203,10 @@ void file_task(intptr_t unused)
       if(pqueueClass->dequeue(fileWriteQue) == 0)
       {
         pfileWriteClass->logFileWrite(fpLog,fileWriteQue);
-      }else{
-
       }
     }
-    fflush(fpLog);	//書き出す　//ここでいいのかわからない
   }
+  fflush(fpLog);	//書き出す　//ここでいいのかわからない
   fclose(fpLog);
   free(fileWriteQue);
 }
