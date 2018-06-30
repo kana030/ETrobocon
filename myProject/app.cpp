@@ -81,7 +81,7 @@ void main_task(intptr_t unused)
     }
   }
   //キャリブレーション
-  getColor(&color_white); //  おまじない
+  getColor(&color_white); //おまじない
   getColor(&color_white);
   getColor(&color_black);
   judgeColor = (color_black + color_white) / 2;
@@ -205,8 +205,8 @@ void file_task(intptr_t unused)
         pfileWriteClass->logFileWrite(fpLog,fileWriteQue);
       }
     }
+    fflush(fpLog);	//書き出す　//ここでいいのかわからない
   }
-  fflush(fpLog);	//書き出す　//ここでいいのかわからない
   fclose(fpLog);
   free(fileWriteQue);
 }
