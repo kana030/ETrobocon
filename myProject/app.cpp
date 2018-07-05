@@ -80,6 +80,7 @@ void main_task(intptr_t unused)
       break;
     }
   }
+  tail_control(90);
   //キャリブレーション
   getColor(&color_white); //おまじない
   getColor(&color_white);
@@ -119,7 +120,7 @@ void main_task(intptr_t unused)
     }
     else
     {
-      if(!flag_start) tail_control(90);
+      //if(!flag_start) tail_control(90);
     }
   }
   delete pqueueClass;
@@ -205,7 +206,7 @@ void file_task(intptr_t unused)
         pfileWriteClass->logFileWrite(fpLog,fileWriteQue);
       }
     }
-    fflush(fpLog);	//書き出す　//ここでいいのかわからない
+    fflush(fpLog);	//書き出す   //ここでいいのかわからない
   }
   fclose(fpLog);
   free(fileWriteQue);
@@ -213,26 +214,28 @@ void file_task(intptr_t unused)
 
 static void tail_control(int angle)
 {
-  float pwm = (float)( (int)angle - myTailMotor->getCount() ); /* 比例制御 */
-  //pwm = pwm * KP;
-  /* PWM出力飽和処理 */
-  if (pwm > PWM_ABS_MAX)
-  {
-    pwm = PWM_ABS_MAX;
-  }
-  else if (pwm < -PWM_ABS_MAX)
-  {
-    pwm = -PWM_ABS_MAX;
-  }
 
-  if (pwm == 0)
-  {
-    myTailMotor->setPWM(0);
-  }
-  else
-  {
-    myTailMotor->setPWM((signed char)pwm);
-  }
+    myTailMotor->setCount(angle);
+  // float pwm = (float)( (int)angle - myTailMotor->getCount() ); /* 比例制御 */
+  // //pwm = pwm * KP;
+  // /* PWM出力飽和処理 */
+  // if (pwm > PWM_ABS_MAX)
+  // {
+  //   pwm = PWM_ABS_MAX;
+  // }
+  // else if (pwm < -PWM_ABS_MAX)
+  // {
+  //   pwm = -PWM_ABS_MAX;
+  // }
+  //
+  // if (pwm == 0)
+  // {
+  //   myTailMotor->setPWM(0);
+  // }
+  // else
+  // {
+  //   myTailMotor->setPWM((signed char)pwm);
+  // }
 }
 
 int checkColor(rgb_raw_t *rgb_get_color){
